@@ -1,84 +1,67 @@
-import { useState } from 'react';
-import { useStore } from '../store/useStore';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useStore } from '../store/useStore';
+import { Camera, User } from 'lucide-react';
 
-export default function AuthView({ isRegister }) {
+export default function AuthView() {
   const navigate = useNavigate();
-  const { setUser, setToken } = useStore();
-  const [formData, setFormData] = useState({ name: '', email: '', password: '' });
-  const [error, setError] = useState('');
+  const { initUser } = useStore();
+  const [name, setName] = useState('');
+  const [bio, setBio] = useState('');
+  const [avatar, setAvatar] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(null);
+  const fileRef = useRef();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    
-    const url = isRegister ? `\${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/auth/register` : `\${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/auth/login`;
-    
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-      const data = await res.json();
-      
-      if (!res.ok) throw new Error(data.error || 'Authentication failed');
-      
-      if (isRegister) {
-        navigate('/login');
-      } else {
-        setToken(data.token);
-        setUser(data.user);
-        navigate('/');
-      }
-    } catch (err) {
-      setError(err.message);
-    }
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setAvatar(ev.target.result);
+      setAvatarPreview(ev.target.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleStart = () => {
+    if (!name.trim()) return;
+    initUser({ name, bio, avatar });
+    navigate('/');
   };
 
   return (
     <div className="auth-container">
-      <h1 className="auth-header">
-        {isRegister ? 'Join Chatorbit' : 'Welcome Back'}
-      </h1>
-      <form onSubmit={handleSubmit}>
-        {isRegister && (
-          <div className="input-group">
-            <input 
-              type="text" 
-              placeholder="Name" 
-              value={formData.name} 
-              onChange={e => setFormData({...formData, name: e.target.value})}
-              required
-            />
-          </div>
-        )}
-        <div className="input-group">
-          <input 
-            type="email" 
-            placeholder="Email" 
-            value={formData.email} 
-            onChange={e => setFormData({...formData, email: e.target.value})}
-            required
-          />
-        </div>
-        <div className="input-group">
-          <input 
-            type="password" 
-            placeholder="Password" 
-            value={formData.password} 
-            onChange={e => setFormData({...formData, password: e.target.value})}
-            required
-          />
-        </div>
-        {error && <p style={{ color: 'red', fontSize: '0.9rem', marginBottom: '1rem' }}>{error}</p>}
-        <button type="submit" className="btn-primary">
-          {isRegister ? 'Sign Up' : 'Login'}
-        </button>
-      </form>
-      <p className="text-link" onClick={() => navigate(isRegister ? '/login' : '/register')}>
-        {isRegister ? 'Already have an account? Login' : "Don't have an account? Sign up"}
+      <h1 className="auth-header">Join Chatorbit</h1>
+      <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', fontSize: '0.9rem' }}>
+        Set up your profile. Your unique ID is generated for you — share it with friends to chat!
       </p>
+
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '2rem' }}>
+        <div
+          onClick={() => fileRef.current.click()}
+          style={{
+            width: 90, height: 90, borderRadius: '50%',
+            background: avatarPreview ? `url(${avatarPreview}) center/cover` : 'var(--bg-input)',
+            border: '3px solid var(--accent-orange)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', position: 'relative'
+          }}
+        >
+          {!avatarPreview && <Camera size={28} color="var(--text-secondary)" />}
+        </div>
+        <input ref={fileRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
+      </div>
+
+      <div className="input-group">
+        <input type="text" placeholder="Your Name" value={name} onChange={e => setName(e.target.value)} />
+      </div>
+      <div className="input-group">
+        <input type="text" placeholder="Bio (optional)" value={bio} onChange={e => setBio(e.target.value)} />
+      </div>
+
+      <button className="btn-primary" onClick={handleStart} disabled={!name.trim()}>
+        Start Chatting →
+      </button>
     </div>
   );
 }
