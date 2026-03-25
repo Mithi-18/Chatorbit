@@ -9,7 +9,7 @@ import ChatView from './views/ChatView';
 import CallHandler from './components/CallHandler';
 
 function App() {
-  const { myPeerId, profile, loadData, addMessage, updateContactPresence } = useStore();
+  const { myPeerId, profile, contacts, loadData, addMessage, updateContactPresence } = useStore();
 
   useEffect(() => {
     loadData();
@@ -18,13 +18,16 @@ function App() {
   useEffect(() => {
     if (!myPeerId) return;
 
-    initPeer(myPeerId).then(() => {
-      setOnMessage((msg) => addMessage(msg));
-      setOnPresenceChange((id, isActive) => updateContactPresence(id, isActive));
-    });
+    const contactIds = contacts.map(c => c.id);
+
+    // Set up callbacks BEFORE connecting so we never miss events
+    setOnMessage((msg) => addMessage(msg));
+    setOnPresenceChange((id, isActive) => updateContactPresence(id, isActive));
+
+    initPeer(myPeerId, contactIds);
 
     return () => destroyPeer();
-  }, [myPeerId]);
+  }, [myPeerId, contacts.length]); // re-init when a new contact is added
 
   return (
     <>
