@@ -26,7 +26,7 @@ export default function ChatInput({ activeChat }) {
       formData.append('mediaFile', mediaFile);
       
       try {
-        const res = await fetch('http://localhost:5000/upload', {
+        const res = await fetch(`\${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/upload`, {
           method: 'POST',
           body: formData
         });

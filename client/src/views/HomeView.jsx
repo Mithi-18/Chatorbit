@@ -12,7 +12,7 @@ export default function HomeView() {
     // Fetch all contacts (simplified for demo: fetching all users except self)
     const fetchContacts = async () => {
       try {
-        const res = await fetch('http://localhost:5000/users');
+        const res = await fetch(`\${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/users`);
         const data = await res.json();
         setContacts(data.filter(u => u.id !== user.id));
       } catch (err) {
@@ -53,7 +53,7 @@ export default function HomeView() {
           </div>
           {contacts.filter(c => c.isActive).map(c => (
             <div className="story-item" key={`story-${c.id}`} onClick={() => handleChatSelect(c)}>
-              <img src={c.profileImage ? `http://localhost:5000${c.profileImage}` : 'https://i.pravatar.cc/150?u=' + c.id} alt={c.name} className="story-avatar" />
+              <img src={c.profileImage ? `\${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${c.profileImage}` : 'https://i.pravatar.cc/150?u=' + c.id} alt={c.name} className="story-avatar" />
               <span className="story-name">{c.name.split(' ')[0]}</span>
             </div>
           ))}
@@ -65,7 +65,7 @@ export default function HomeView() {
           <div className="chat-item" key={contact.id} onClick={() => handleChatSelect(contact)}>
             <div className="chat-avatar-container">
               <img 
-                src={contact.profileImage ? `http://localhost:5000${contact.profileImage}` : 'https://i.pravatar.cc/150?u=' + contact.id} 
+                src={contact.profileImage ? `\${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${contact.profileImage}` : 'https://i.pravatar.cc/150?u=' + contact.id} 
                 alt={contact.name} 
                 className="chat-avatar" 
               />

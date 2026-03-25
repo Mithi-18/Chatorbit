@@ -24,7 +24,7 @@ export default function ChatView() {
     // Fetch message history
     const fetchHistory = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/messages/${user.id}/${id}`);
+        const res = await fetch(`\${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/messages/${user.id}/${id}`);
         const data = await res.json();
         setMessages(data);
       } catch (err) {
@@ -46,7 +46,7 @@ export default function ChatView() {
         <ChevronLeft className="back-btn" onClick={() => navigate(-1)} size={28} />
         <div className="chat-topbar-info">
           <img 
-            src={activeChat.profileImage ? `http://localhost:5000${activeChat.profileImage}` : 'https://i.pravatar.cc/150?u=' + activeChat.id} 
+            src={activeChat.profileImage ? `\${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${activeChat.profileImage}` : 'https://i.pravatar.cc/150?u=' + activeChat.id} 
             className="topbar-avatar" 
             alt={activeChat.name}
           />
@@ -73,9 +73,9 @@ export default function ChatView() {
           return (
             <div key={msg.id || i} className={`message ${isSent ? 'sent' : 'received'}`}>
               {msg.type === 'text' && <div>{msg.content}</div>}
-              {msg.type === 'image' && <img src={`http://localhost:5000${msg.mediaUrl}`} alt="Sent image" />}
-              {msg.type === 'video' && <video src={`http://localhost:5000${msg.mediaUrl}`} controls />}
-              {msg.type === 'voice' && <audio src={`http://localhost:5000${msg.mediaUrl}`} controls style={{ height: '30px' }} />}
+              {msg.type === 'image' && <img src={`\${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${msg.mediaUrl}`} alt="Sent image" />}
+              {msg.type === 'video' && <video src={`\${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${msg.mediaUrl}`} controls />}
+              {msg.type === 'voice' && <audio src={`\${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${msg.mediaUrl}`} controls style={{ height: '30px' }} />}
               
               <span className="message-time">
                 {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

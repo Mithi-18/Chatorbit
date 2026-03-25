@@ -12,7 +12,7 @@ export default function AuthView({ isRegister }) {
     e.preventDefault();
     setError('');
     
-    const url = isRegister ? 'http://localhost:5000/auth/register' : 'http://localhost:5000/auth/login';
+    const url = isRegister ? `\${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/auth/register` : `\${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/auth/login`;
     
     try {
       const res = await fetch(url, {
