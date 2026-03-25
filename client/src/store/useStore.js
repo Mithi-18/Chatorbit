@@ -5,7 +5,8 @@ import { v4 as uuidv4 } from 'uuid';
 // Separate IndexedDB stores for different data types
 const messagesDB  = localforage.createInstance({ name: 'chatorbit', storeName: 'messages' });
 const contactsDB  = localforage.createInstance({ name: 'chatorbit', storeName: 'contacts' });
-const profileDB   = localforage.createInstance({ name: 'chatorbit', storeName: 'profile' });  // for large base64 avatars
+const profileDB   = localforage.createInstance({ name: 'chatorbit', storeName: 'profile' });
+const unreadDB    = localforage.createInstance({ name: 'chatorbit', storeName: 'unread' });
 
 const generatePeerId = () => 'orbit-' + Math.random().toString(36).substr(2, 9);
 
@@ -49,9 +50,10 @@ export const useStore = create((set, get) => ({
 
   // Load all persisted data including avatar from IndexedDB
   loadData: async () => {
-    const [savedContacts, avatar] = await Promise.all([
+    const [savedContacts, avatar, savedUnread] = await Promise.all([
       contactsDB.getItem('list'),
       profileDB.getItem('avatar'),
+      unreadDB.getItem('counts'),
     ]);
 
     const profileText = (() => {
@@ -64,6 +66,7 @@ export const useStore = create((set, get) => ({
     set({
       contacts: savedContacts || [],
       profile: fullProfile,
+      unread: savedUnread || {},
       appLoading: false,
     });
   },
@@ -103,25 +106,30 @@ export const useStore = create((set, get) => ({
   // ── Chat / Messages ─────────────────────────────────────────────
   setActiveChat: async (chat) => {
     const msgs = await messagesDB.getItem(`chat_${chat.id}`) || [];
-    // Clear unread count when opening this chat
-    set((state) => ({
-      activeChat: chat,
-      messages: msgs,
-      unread: { ...state.unread, [chat.id]: 0 }
-    }));
+    // Clear unread count when opening this chat and persist it
+    set((state) => {
+      const newUnread = { ...state.unread, [chat.id]: 0 };
+      unreadDB.setItem('counts', newUnread); // persist
+      return { activeChat: chat, messages: msgs, unread: newUnread };
+    });
   },
 
   incrementUnread: (contactId) => {
-    // Don't count if user is actively viewing that chat
     const { activeChat } = useStore.getState();
     if (activeChat?.id === contactId && document.visibilityState === 'visible') return;
-    set((state) => ({
-      unread: { ...state.unread, [contactId]: (state.unread[contactId] || 0) + 1 }
-    }));
+    set((state) => {
+      const newUnread = { ...state.unread, [contactId]: (state.unread[contactId] || 0) + 1 };
+      unreadDB.setItem('counts', newUnread); // persist
+      return { unread: newUnread };
+    });
   },
 
   clearUnread: (contactId) => {
-    set((state) => ({ unread: { ...state.unread, [contactId]: 0 } }));
+    set((state) => {
+      const newUnread = { ...state.unread, [contactId]: 0 };
+      unreadDB.setItem('counts', newUnread);
+      return { unread: newUnread };
+    });
   },
 
   addMessage: async (msg) => {
