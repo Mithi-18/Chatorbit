@@ -2,74 +2,124 @@ import { create } from 'zustand';
 import localforage from 'localforage';
 import { v4 as uuidv4 } from 'uuid';
 
-const messagesDB = localforage.createInstance({ name: 'chatorbit_messages' });
-const contactsDB = localforage.createInstance({ name: 'chatorbit_contacts' });
+// Separate IndexedDB stores for different data types
+const messagesDB  = localforage.createInstance({ name: 'chatorbit', storeName: 'messages' });
+const contactsDB  = localforage.createInstance({ name: 'chatorbit', storeName: 'contacts' });
+const profileDB   = localforage.createInstance({ name: 'chatorbit', storeName: 'profile' });  // for large base64 avatars
 
 const generatePeerId = () => 'orbit-' + Math.random().toString(36).substr(2, 9);
 
 export const useStore = create((set, get) => ({
+  // ── Auth / Profile ──────────────────────────────────────────────
   myPeerId: localStorage.getItem('myPeerId') || '',
-  profile: JSON.parse(localStorage.getItem('myProfile') || 'null'),
+  // Small text profile fields in localStorage, avatar in IndexedDB
+  profile: (() => {
+    try { return JSON.parse(localStorage.getItem('myProfile') || 'null'); }
+    catch { return null; }
+  })(),
+
+  // ── Data ────────────────────────────────────────────────────────
   contacts: [],
   activeChat: null,
   messages: [],
+  appLoading: true,   // true until contacts are loaded from IndexedDB
 
-  initUser: (profileData) => {
+  // ── Init / Load ─────────────────────────────────────────────────
+  initUser: async (profileData) => {
     let peerId = localStorage.getItem('myPeerId');
     if (!peerId) {
       peerId = generatePeerId();
       localStorage.setItem('myPeerId', peerId);
     }
-    const updatedProfile = { ...profileData, id: peerId };
-    localStorage.setItem('myProfile', JSON.stringify(updatedProfile));
-    set({ myPeerId: peerId, profile: updatedProfile });
+
+    // Store avatar separately in IndexedDB (avoids 5MB localStorage limit)
+    const { avatar, ...textFields } = profileData;
+    const textProfile = { ...textFields, id: peerId };
+    localStorage.setItem('myProfile', JSON.stringify(textProfile));
+
+    if (avatar) {
+      await profileDB.setItem('avatar', avatar);
+    }
+
+    const fullProfile = { ...textProfile, avatar: avatar || null };
+    set({ myPeerId: peerId, profile: fullProfile });
     return peerId;
   },
 
+  // Load all persisted data including avatar from IndexedDB
   loadData: async () => {
-    const savedContacts = await contactsDB.getItem('list') || [];
-    set({ contacts: savedContacts });
+    const [savedContacts, avatar] = await Promise.all([
+      contactsDB.getItem('list'),
+      profileDB.getItem('avatar'),
+    ]);
+
+    const profileText = (() => {
+      try { return JSON.parse(localStorage.getItem('myProfile') || 'null'); }
+      catch { return null; }
+    })();
+
+    const fullProfile = profileText ? { ...profileText, avatar: avatar || null } : null;
+
+    set({
+      contacts: savedContacts || [],
+      profile: fullProfile,
+      appLoading: false,
+    });
   },
 
-  saveProfile: (profileData) => {
+  updateProfile: async (updates) => {
     const current = get().profile || {};
-    const updated = { ...current, ...profileData };
-    localStorage.setItem('myProfile', JSON.stringify(updated));
-    set({ profile: updated });
+    const { avatar, ...textUpdates } = updates;
+
+    if (avatar !== undefined) {
+      await profileDB.setItem('avatar', avatar);
+    }
+
+    const { avatar: _old, ...textCurrent } = current;
+    const newTextProfile = { ...textCurrent, ...textUpdates };
+    localStorage.setItem('myProfile', JSON.stringify(newTextProfile));
+    set({ profile: { ...newTextProfile, avatar: avatar !== undefined ? avatar : current.avatar } });
   },
 
+  // ── Contacts ────────────────────────────────────────────────────
   addContact: async (contact) => {
     const { contacts } = get();
-    if (!contacts.find(c => c.id === contact.id)) {
-      const newList = [...contacts, { ...contact, isActive: false }];
-      await contactsDB.setItem('list', newList);
-      set({ contacts: newList });
-    }
+    if (contacts.find(c => c.id === contact.id)) return;
+    const newList = [...contacts, { ...contact, isActive: false }];
+    await contactsDB.setItem('list', newList);
+    set({ contacts: newList });
   },
 
   updateContactPresence: (id, isActive) => {
     set((state) => {
       const newList = state.contacts.map(c => c.id === id ? { ...c, isActive } : c);
+      // persist presence update (fire-and-forget)
       contactsDB.setItem('list', newList);
       return { contacts: newList };
     });
   },
 
+  // ── Chat / Messages ─────────────────────────────────────────────
   setActiveChat: async (chat) => {
     const msgs = await messagesDB.getItem(`chat_${chat.id}`) || [];
     set({ activeChat: chat, messages: msgs });
   },
 
   addMessage: async (msg) => {
-    const { activeChat, myPeerId } = get();
+    const { myPeerId, activeChat } = get();
+    // Determine which contact this chat belongs to
     const chatPartnerId = msg.senderId === myPeerId ? msg.receiverId : msg.senderId;
-    const existingMsgs = await messagesDB.getItem(`chat_${chatPartnerId}`) || [];
-    if (!existingMsgs.find(m => m.id === msg.id)) {
-      const updated = [...existingMsgs, msg];
-      await messagesDB.setItem(`chat_${chatPartnerId}`, updated);
-      if (activeChat && activeChat.id === chatPartnerId) {
-        set({ messages: updated });
-      }
+
+    const existing = await messagesDB.getItem(`chat_${chatPartnerId}`) || [];
+    // Deduplicate by message ID
+    if (existing.find(m => m.id === msg.id)) return;
+
+    const updated = [...existing, msg];
+    await messagesDB.setItem(`chat_${chatPartnerId}`, updated);
+
+    // Only update live view if user is currently in that chat
+    if (activeChat?.id === chatPartnerId) {
+      set({ messages: updated });
     }
   },
 }));
