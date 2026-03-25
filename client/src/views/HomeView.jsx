@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../store/useStore';
 import { useNavigate } from 'react-router-dom';
-import { Search, Copy, UserPlus, Settings } from 'lucide-react';
+import { Search, Copy, UserPlus } from 'lucide-react';
 import { connectToPeer } from '../lib/peerService';
 
 const Avatar = ({ src, name, size = 50 }) => (
@@ -16,7 +16,7 @@ const Avatar = ({ src, name, size = 50 }) => (
 );
 
 export default function HomeView() {
-  const { profile, myPeerId, contacts, addContact, setActiveChat } = useStore();
+  const { profile, myPeerId, contacts, unread, addContact, setActiveChat } = useStore();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [addPeerId, setAddPeerId] = useState('');
@@ -135,7 +135,9 @@ export default function HomeView() {
             No contacts yet.<br />Add a friend using their Peer ID to get started!
           </p>
         )}
-        {filtered.map(c => (
+        {filtered.map(c => {
+          const count = unread?.[c.id] || 0;
+          return (
           <div key={c.id} className="chat-item" onClick={() => handleChatSelect(c)}>
             <div className="chat-avatar-container">
               <Avatar src={c.avatar} name={c.name} size={50} />
@@ -144,16 +146,28 @@ export default function HomeView() {
             <div className="chat-info">
               <div className="chat-header">
                 <span className="chat-name">{c.name}</span>
-                <span className="chat-time" style={{ color: c.isActive ? '#00dd88' : 'var(--text-secondary)' }}>
-                  {c.isActive ? '● Online' : 'Offline'}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  {count > 0 && (
+                    <span style={{
+                      background: '#ff4500', color: 'white', borderRadius: '50%',
+                      minWidth: 20, height: 20, display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', fontSize: '0.7rem', fontWeight: 700, padding: '0 4px'
+                    }}>
+                      {count > 99 ? '99+' : count}
+                    </span>
+                  )}
+                  <span className="chat-time" style={{ color: c.isActive ? '#00dd88' : 'var(--text-secondary)' }}>
+                    {c.isActive ? '● Online' : 'Offline'}
+                  </span>
+                </div>
               </div>
               <div className="chat-last-msg" style={{ fontFamily: 'monospace', fontSize: '0.72rem' }}>
                 {c.id}
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

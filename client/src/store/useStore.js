@@ -22,6 +22,7 @@ export const useStore = create((set, get) => ({
   contacts: [],
   activeChat: null,
   messages: [],
+  unread: {},      // { [contactId]: count }
   appLoading: true,   // true until contacts are loaded from IndexedDB
 
   // ── Init / Load ─────────────────────────────────────────────────
@@ -102,7 +103,25 @@ export const useStore = create((set, get) => ({
   // ── Chat / Messages ─────────────────────────────────────────────
   setActiveChat: async (chat) => {
     const msgs = await messagesDB.getItem(`chat_${chat.id}`) || [];
-    set({ activeChat: chat, messages: msgs });
+    // Clear unread count when opening this chat
+    set((state) => ({
+      activeChat: chat,
+      messages: msgs,
+      unread: { ...state.unread, [chat.id]: 0 }
+    }));
+  },
+
+  incrementUnread: (contactId) => {
+    // Don't count if user is actively viewing that chat
+    const { activeChat } = useStore.getState();
+    if (activeChat?.id === contactId && document.visibilityState === 'visible') return;
+    set((state) => ({
+      unread: { ...state.unread, [contactId]: (state.unread[contactId] || 0) + 1 }
+    }));
+  },
+
+  clearUnread: (contactId) => {
+    set((state) => ({ unread: { ...state.unread, [contactId]: 0 } }));
   },
 
   addMessage: async (msg) => {

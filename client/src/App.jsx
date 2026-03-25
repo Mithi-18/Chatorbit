@@ -4,6 +4,10 @@ import { useStore } from './store/useStore';
 import {
   initPeer, setOnMessage, setOnPresenceChange, destroyPeer, connectToPeer
 } from './lib/peerService';
+import {
+  requestNotificationPermission, playNotificationSound,
+  showPushNotification, showInAppToast
+} from './lib/notifications';
 
 import AuthView from './views/AuthView';
 import HomeView from './views/HomeView';
@@ -13,7 +17,7 @@ import CallHandler from './components/CallHandler';
 function App() {
   const {
     myPeerId, profile, contacts, appLoading,
-    loadData, addMessage, updateContactPresence
+    loadData, addMessage, updateContactPresence, incrementUnread
   } = useStore();
   
   const peerInitialized = useRef(false);
@@ -30,8 +34,46 @@ function App() {
     if (!myPeerId || appLoading || peerInitialized.current) return;
     peerInitialized.current = true;
 
-    // Callbacks always read fresh state via refs / closures
-    setOnMessage((msg) => useStore.getState().addMessage(msg));
+    // Request OS notification permission once
+    requestNotificationPermission();
+
+    setOnMessage(async (msg) => {
+      const store = useStore.getState();
+      await store.addMessage(msg);
+      store.incrementUnread(msg.senderId);
+
+      // Find sender name
+      const sender = store.contacts.find(c => c.id === msg.senderId);
+      const senderName = sender?.name || 'Someone';
+
+      // Detect if user is currently reading this chat
+      const isReadingThisChat = store.activeChat?.id === msg.senderId
+        && document.visibilityState === 'visible';
+
+      if (!isReadingThisChat) {
+        // 🔊 Play ping sound
+        playNotificationSound();
+
+        // 📢 OS push notification (when tab is in background)
+        const preview = msg.type === 'text'
+          ? (msg.content || '')
+          : msg.type === 'voice' ? '🎙 Voice message'
+          : msg.type === 'image' ? '🖼 Image'
+          : msg.type === 'video' ? '🎬 Video'
+          : 'New message';
+
+        showPushNotification(senderName, preview, sender?.avatar);
+
+        // 🟠 In-app toast (when tab is visible but in different chat / home)
+        if (document.visibilityState === 'visible') {
+          showInAppToast(senderName, preview, () => {
+            store.setActiveChat(sender || { id: msg.senderId, name: senderName });
+            window.location.hash = `/chat/${msg.senderId}`;
+          });
+        }
+      }
+    });
+
     setOnPresenceChange((id, isActive) => useStore.getState().updateContactPresence(id, isActive));
 
     const contactIds = contactsRef.current.map(c => c.id);
